@@ -1,45 +1,21 @@
 # __main__.py
 
 import pulumi
-import pulumi_aws as aws
+from components import RegionalBucket
 
-regions = ["us-east-1", "us-west-2"]
-# regions = ["us-east-1", "us-west-2", "us-west-1"]
-region_to_arn = {}
-# buckets = []
 
-for region in regions:
-    provider = aws.Provider(f"provider-{region}", region=region)
+regions = [
+    ("us-east-1", 30),
+    ("us-west-2", 60),
+]
 
-    bucket = aws.s3.Bucket(f"bucket-{region}",
-        tags={"Region": region},
-        opts=pulumi.ResourceOptions(provider=provider)
-    )
+# regions = ["us-east-1", "us-west-2"]
+buckets = [RegionalBucket(
+    name=r_name,
+    region=r_name,
+    bucket_name_prefix="pulumi-lab",
+    lifecycle_days=days
+) for r_name, days in regions]
 
-    aws.s3.BucketVersioning(f"versioning-{region}",
-        bucket=bucket.id,
-        versioning_configuration=aws.s3.BucketVersioningVersioningConfigurationArgs(
-            status="Enabled"
-        ),
-        opts=pulumi.ResourceOptions(provider=provider)
-    )
+pulumi.export("region_to_bucket_arn", {r[0]: b.bucket.arn for r, b in zip(regions, buckets)})
 
-    aws.s3.BucketLifecycleConfiguration(f"lifecycle-{region}",
-        bucket=bucket.id,
-        rules=[aws.s3.BucketLifecycleConfigurationRuleArgs(
-            id="glacier-transition-rule",
-            status="Enabled",
-            transitions=[aws.s3.BucketLifecycleConfigurationRuleTransitionArgs(
-                days=90,
-                storage_class="GLACIER",
-            )],
-        )],
-        opts=pulumi.ResourceOptions(provider=provider)
-    )
-
-    region_to_arn[region] = bucket.arn
-
-pulumi.export("region_to_arn", region_to_arn)
-
-# pulumi.export("bucket_names", [b.id for b in buckets])
-# pulumi.export("bucket_arns", [b.arn for b in buckets])
