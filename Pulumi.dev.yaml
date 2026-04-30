@@ -3,3 +3,4 @@ config:
   pulumi-lab:github_token:
     secure: v1:HNfEjNy4t8p6peFn:HY9jNsn7K5sCQGPmW3Z/VZrWbPRmWSTyRqULJSRh0GHigDgdAXCX0D7Ww3ZFX5eBFfc4Yyaq0JY=
   pulumi-lab:repo_visibility: public
+  aws:region: us-east-1
