@@ -3,50 +3,43 @@
 import pulumi
 import pulumi_aws as aws
 
-bucket = aws.s3.Bucket("lab-bucket",
-    tags={"Name": "pulumi-lab"}
-)
+regions = ["us-east-1", "us-west-2"]
+# regions = ["us-east-1", "us-west-2", "us-west-1"]
+region_to_arn = {}
+# buckets = []
 
-website = aws.s3.BucketWebsiteConfiguration("website",
-    bucket=bucket.id,
-    index_document=aws.s3.BucketWebsiteConfigurationIndexDocumentArgs(
-        suffix="index.html"
+for region in regions:
+    provider = aws.Provider(f"provider-{region}", region=region)
+
+    bucket = aws.s3.Bucket(f"bucket-{region}",
+        tags={"Region": region},
+        opts=pulumi.ResourceOptions(provider=provider)
     )
-)
 
-pab = aws.s3.BucketPublicAccessBlock("public-access-block",
-    bucket=bucket.id,
-    block_public_acls=False,
-    block_public_policy=False,
-    ignore_public_acls=False,
-    restrict_public_buckets=False
-)
+    aws.s3.BucketVersioning(f"versioning-{region}",
+        bucket=bucket.id,
+        versioning_configuration=aws.s3.BucketVersioningVersioningConfigurationArgs(
+            status="Enabled"
+        ),
+        opts=pulumi.ResourceOptions(provider=provider)
+    )
 
-policy_document = pulumi.Output.format('{{"Version":"2012-10-17","Statement":[{{"Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"{0}/*"}}]}}', bucket.arn)
+    aws.s3.BucketLifecycleConfiguration(f"lifecycle-{region}",
+        bucket=bucket.id,
+        rules=[aws.s3.BucketLifecycleConfigurationRuleArgs(
+            id="glacier-transition-rule",
+            status="Enabled",
+            transitions=[aws.s3.BucketLifecycleConfigurationRuleTransitionArgs(
+                days=90,
+                storage_class="GLACIER",
+            )],
+        )],
+        opts=pulumi.ResourceOptions(provider=provider)
+    )
 
-aws.s3.BucketPolicy("bucket-policy",
-     bucket=bucket.id,
-     policy=policy_document,
-     opts=pulumi.ResourceOptions(depends_on=[pab])
- )
+    region_to_arn[region] = bucket.arn
 
-aws.s3.BucketObject("index-html",
-    bucket=bucket.id,
-    key="index.html",
-    content="<h1>Hello from Pulumi!</h1>",
-    content_type="text/html"
-)
+pulumi.export("region_to_arn", region_to_arn)
 
-
-pulumi.export("bucket_name", bucket.id)
-pulumi.export("website_url", website.website_endpoint)
-
-# uploaded_file = aws.s3.BucketObject("hello-file",
-#     bucket=bucket.id,
-#     key="hello.txt",
-#     content="Hello from Pulumi!",
-#     content_type="text/plain"
-# )
-#
-# pulumi.export("bucket_name", bucket.id)
-# pulumi.export("bucket_arn", bucket.arn)
+# pulumi.export("bucket_names", [b.id for b in buckets])
+# pulumi.export("bucket_arns", [b.arn for b in buckets])
